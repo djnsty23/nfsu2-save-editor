@@ -414,7 +414,7 @@ const check = (name, ok, detail = '') => { ok ? pass++ : fail++; console.log(`${
           c.font = `${cs.fontWeight} ${cs.fontSize} ${cs.fontFamily}`;
           const room = s.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight) - 20, need = c.measureText(text).width;
           if (need > room) out.push(`${t.textContent}: ${text} ${Math.round(need)}>${Math.round(room)}`);
-          if (!('locked' in s.dataset) && s.title !== text) out.push(`${t.textContent}: no tooltip for ${text}`);
+          if (!('locked' in s.dataset) && (s.dataset.tip ?? s.title) !== text) out.push(`${t.textContent}: no tooltip for ${text}`);
         }
       }
       d.querySelector('.looks-tabs button').click();
