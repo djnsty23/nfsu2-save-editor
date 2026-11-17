@@ -83,6 +83,7 @@ This finishes the story on the profile. Only ever on the copy.
 | Restore original | History, **Restore original** | The profile as it was before the first edit. |
 | Game running | Press Play, then try any edit in the panel | The panel refuses and says the game is running. Nothing is written. |
 | Music after closing | Music card, play a song, close the side panel, wait 20 seconds, open it again | The song keeps playing while the panel is closed. The reopened panel shows the same song, about 20 seconds further on, and there is only one copy playing. Pause, then close: the music stops. |
+| Tooltips (panel only) | Rest the mouse on **Set** beside money, then on the greyed-out previous-song button before any song plays, then Tab onto any button | After about 1.3 seconds a tip explains each control: the money Set writes the typed amount, previous-song says "Previous song." even while greyed out. Keyboard focus shows the tip at once. Only one tip shows, never next to the browser's own. Nothing changes in game. |
 | Offline notice | Read the panel before the first edit | The notice says edited careers are for offline play only, and edits stay locked until you click **I understand: offline only** (once per install). |
 
 ## F. Backup and restore
