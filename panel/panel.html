@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NFSU2 Save Editor</title>
+  <link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header class="top">
+    <h1><span>NFSU2 Save Editor</span></h1>
+    <p id="conn" class="conn" role="status">Connecting to nfsu2.xyz…</p>
+    <div id="offline" class="offline" hidden>
+      <button id="openSite" class="btn primary" type="button"><span>Open nfsu2.xyz</span></button>
+      <button id="retry" class="btn" type="button" hidden><span>Retry</span></button>
+    </div>
+  </header>
+
+  <!-- First run: the editor writes nothing until this is confirmed. The confirmation is kept in chrome.storage.local
+       (offlineAck), so it shows once per install. -->
+  <dialog id="ack" class="ack" aria-labelledby="ackTitle" aria-describedby="ackText">
+    <h2 id="ackTitle">Edited careers are for offline play only</h2>
+    <div id="ackText">
+      <p>Use an edited career only in your own offline game. Taking it online, into races, leaderboards or anything other players see, is cheating, and nfsu2.xyz can flag or ban the save or your account for it.</p>
+      <p>This editor is a fan tool. It is not made by, endorsed by or connected to EA or nfsu2.xyz.</p>
+      <p>It comes with no warranty. It keeps a copy of your save before every edit, but keep your own backups too.</p>
+    </div>
+    <button id="ackYes" class="btn primary block" type="button"><span>I understand: offline only</span></button>
+  </dialog>
+
+  <!-- Layout A: one scroll. At 400 px the section tabs stay at the top and follow the scroll; from 1000 px Career sits
+       left, Cars right and Music across the bottom. -->
+  <main id="app" class="layout" hidden>
+    <nav id="jump" class="jump" aria-label="Sections">
+      <button type="button" data-to="careerCard" aria-current="true">Career</button>
+      <button type="button" data-to="carsCard">Cars</button>
+      <button type="button" data-to="music">Music</button>
+      <button type="button" data-to="historyCard">History</button>
+    </nav>
+
+    <section id="guide" class="card guide" aria-labelledby="guideTitle" hidden>
+      <h2 id="guideTitle"></h2>
+      <p id="guideText"></p>
+      <button id="guideRefresh" class="btn primary" type="button"><span>Check again</span></button>
+    </section>
+
+    <div class="col col-a">
+      <section id="careerCard" class="card needs-profile">
+        <div class="head">
+          <h2>Career</h2>
+          <div class="head-tools">
+            <label for="profile" class="sr">Profile</label>
+            <select id="profile"></select>
+            <button id="refresh" class="btn ghost" type="button"><span>Refresh</span></button>
+          </div>
+        </div>
+        <dl id="facts" class="facts">
+          <dt id="moneyDt">Money</dt>
+          <dd id="moneyDd" class="money-dd">
+            <span id="moneyRead" class="money-read"></span>
+            <span class="money-edit needs-write">
+              <label for="money" class="sr">Exact amount</label>
+              <input id="money" type="number" min="0" max="999999999" step="1" inputmode="numeric">
+              <button id="setMoney" class="btn" type="button"><span>Set</span></button>
+              <button id="maxMoney" class="btn ghost" type="button" title="Set money to $9,999,999"><span>$9,999,999</span></button>
+            </span>
+          </dd>
+        </dl>
+        <div id="stageBox" class="stagebar" hidden>
+          <div class="barcap"><b id="stageName"></b><span id="stageCount"></span></div>
+          <div id="stageBar" class="bar" role="progressbar" aria-label="Story progress" aria-valuemin="0" aria-valuemax="100"><i></i></div>
+        </div>
+        <div class="row stage-row needs-write">
+          <label for="stage" class="sr">Stage</label>
+          <select id="stage"></select>
+          <button id="setStage" class="btn" type="button" title="Moves the current stage only. Unlock everything, at the bottom, finishes the whole story."><span>Set stage</span></button>
+        </div>
+        <div class="oneclick needs-write">
+          <button id="bestGarage" class="btn primary block" type="button" title="Best car on every car: research parts, every unique, Level 3 body-kit aero, carbon, and the research setup for every race type. Setups you tuned stay, and a car with a tuned setup keeps its parts. About 20 seconds a car."><span>Best version of every car</span></button>
+          <div class="stackbtns">
+            <button id="maxPerf" class="btn" type="button"><span>Max performance</span></button>
+            <button id="uniques" class="btn" type="button"><span>All unique upgrades</span></button>
+            <button id="carbonAll" class="btn" type="button" title="Swap every hood, spoiler, roof scoop, mirror and aftermarket body kit on every car to carbon fibre"><span>All carbon fibre</span></button>
+          </div>
+          <p class="note">Keeps your tuned setups. About 20 s a car.</p>
+          <p class="offline-line">Offline play only. An edited career taken online can get the save or account banned on nfsu2.xyz.</p>
+        </div>
+        <details id="uniqueBox" class="line-d" hidden>
+          <summary><i class="dot" aria-hidden="true"></i><span id="uniqueTitle"></span></summary>
+          <ul id="uniqueList" class="chips" aria-labelledby="uniqueTitle"></ul>
+        </details>
+        <p id="roamNote" class="note warn" hidden>"Free roam with others" is on, so this career joins other players when you press Play. To keep it offline, untick it on nfsu2.xyz: Online tab, Free roam with others.</p>
+        <details class="why">
+          <summary>Why offline?</summary>
+          <p>Edited careers are for offline play. The site can see money in cloud saves and online.</p>
+        </details>
+      </section>
+
+      <section id="unlocksCard" class="card needs-profile">
+        <h2>Next unlocks</h2>
+        <p id="unlocksEmpty" class="note"></p>
+        <div id="urlWinsHome"></div>
+        <div id="urlWinsBox" class="shortcut" hidden>
+          <div class="check-row">
+            <span class="check-t"><b>Carbon body kits</b><small id="urlWinsNote"></small></span>
+            <button id="urlWins" class="btn" type="button" aria-controls="urlWinsConfirm" aria-describedby="urlWinsNote"><span id="urlWinsLabel">Record wins</span></button>
+          </div>
+          <p class="offline-line">Offline play only. An edited career taken online can get the save or account banned on nfsu2.xyz.</p>
+          <div id="urlWinsConfirm" class="confirm" role="group" aria-labelledby="urlWinsConfirmText" hidden>
+            <p id="urlWinsConfirmText"></p>
+            <ul id="urlWinsDiff" class="diff"></ul>
+            <div class="row">
+              <button id="urlWinsYes" class="btn primary" type="button"><span>Record the wins</span></button>
+              <button id="urlWinsNo" class="btn" type="button"><span>Cancel</span></button>
+            </div>
+          </div>
+        </div>
+        <div id="storyLocks" class="locks" hidden>
+          <p id="storyLocksTitle" class="note"></p>
+          <ul id="storyLocksList" class="check"></ul>
+          <button id="storyLocksMore" class="btn more" type="button" aria-controls="storyLocksList" aria-expanded="false" hidden></button>
+        </div>
+      </section>
+
+      <section id="historyCard" class="card needs-profile">
+        <div class="head">
+          <h2>History</h2>
+          <button id="restoreOriginal" class="btn ghost" type="button"><span>Restore original</span></button>
+        </div>
+        <p class="offline-line">Offline play only. An edited career taken online can get the save or account banned on nfsu2.xyz.</p>
+        <div id="undoConfirm" class="confirm" role="group" aria-labelledby="undoConfirmText" hidden>
+          <p id="undoConfirmText"></p>
+          <ul id="undoDiff" class="diff"></ul>
+          <div class="row">
+            <button id="undoConfirmYes" class="btn primary" type="button"><span>Undo anyway</span></button>
+            <button id="undoConfirmNo" class="btn" type="button"><span>Cancel</span></button>
+          </div>
+        </div>
+        <ol id="history" class="history"></ol>
+      </section>
+
+      <section id="backupCard" class="card">
+        <h2>Backup</h2>
+        <p class="note">One zip with every career and its GARAGE.DAT, laid out like nfsu2.xyz's own Saves backup, so each side restores the other's.</p>
+        <div class="row">
+          <button id="backupAll" class="btn" type="button"><span>Download backup</span></button>
+          <label id="restoreLabel" class="btn file"><span>Restore from file</span><input id="restoreFile" type="file" accept=".zip,application/zip,application/octet-stream"></label>
+        </div>
+        <p class="offline-line">Offline play only. An edited career taken online can get the save or account banned on nfsu2.xyz.</p>
+        <div id="restoreConfirm" class="confirm" role="group" aria-labelledby="restoreConfirmText" hidden>
+          <p id="restoreConfirmText"></p>
+          <ul id="restoreDiff" class="diff stack"></ul>
+          <p id="restoreSkipped" class="note" hidden></p>
+          <div class="row">
+            <button id="restoreYes" class="btn primary" type="button"><span>Restore</span></button>
+            <button id="restoreNo" class="btn" type="button"><span>Cancel</span></button>
+          </div>
+        </div>
+        <button id="undoRestore" class="btn ghost" type="button" hidden><span>Undo the last restore</span></button>
+      </section>
+
+      <section id="dangerCard" class="card danger needs-write">
+        <h2>Ends the career</h2>
+        <p id="unlockNote" class="note"></p>
+        <button id="unlockAll" class="btn dangerbtn block" type="button" aria-controls="unlockConfirm"><span>Unlock everything</span></button>
+        <p class="offline-line">Offline play only. An edited career taken online can get the save or account banned on nfsu2.xyz.</p>
+        <div id="unlockConfirm" class="confirm" role="group" aria-labelledby="unlockConfirmText" hidden>
+          <p id="unlockConfirmText"></p>
+          <ul id="unlockDiff" class="diff"></ul>
+          <div class="row">
+            <button id="unlockConfirmYes" class="btn dangerbtn" type="button"><span>Finish the story and unlock</span></button>
+            <button id="unlockConfirmNo" class="btn" type="button"><span>Cancel</span></button>
+          </div>
+        </div>
+      </section>
+
+      <section id="dbCard" class="card db">
+        <div class="db-line">
+          <i class="dot" aria-hidden="true"></i>
+          <p id="dbState" class="db-state"></p>
+          <button id="dbChange" class="btn ghost" type="button" aria-expanded="false" aria-controls="dbLoad" hidden><span>Change</span></button>
+        </div>
+        <div id="dbLoad" class="row">
+          <button id="dbFromSite" class="btn ghost" type="button"><span>Read from site cache</span></button>
+          <label class="btn ghost file"><span>Choose GLOBALB.BUN or GlobalB.lzc</span><input id="dbFile" type="file" accept=".bun,.BUN,.lzc"></label>
+        </div>
+      </section>
+    </div>
+
+    <div class="col col-b">
+      <section id="carsCard" class="card needs-profile">
+        <div class="head">
+          <h2>Cars</h2>
+          <span id="carsChip" class="chip" hidden></span>
+        </div>
+        <p class="offline-line">Offline play only. An edited career taken online can get the save or account banned on nfsu2.xyz.</p>
+        <div id="cars" class="cars"></div>
+      </section>
+
+      <section id="garageCard" class="card needs-write" aria-labelledby="garageTitle">
+        <h2 id="garageTitle">Ready-made garage</h2>
+        <p id="garageNote" class="note"></p>
+        <ul id="garageList" class="ready"></ul>
+        <button id="garageReplace" class="btn dangerbtn block" type="button" aria-controls="garageConfirm" aria-expanded="false"><span>Replace my whole garage</span></button>
+        <p class="offline-line">Offline play only. An edited career taken online can get the save or account banned on nfsu2.xyz.</p>
+        <div id="garageConfirm" class="confirm" role="group" aria-labelledby="garageConfirmText" hidden>
+          <p id="garageConfirmText"></p>
+          <ul id="garageDiff" class="diff stack"></ul>
+          <p id="garageUnplaced" class="note" hidden></p>
+          <div class="row">
+            <button id="garageBackup" class="btn" type="button"><span>Download a backup first</span></button>
+          </div>
+          <label class="agree"><input id="garageAgree" type="checkbox"><span>I understand: the looks, parts and tuning of these cars are replaced.</span></label>
+          <div class="row">
+            <button id="garageReplaceYes" class="btn dangerbtn" type="button"><span>Replace the garage</span></button>
+            <button id="garageReplaceNo" class="btn" type="button"><span>Cancel</span></button>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <section class="card" id="music">
+      <div class="head">
+        <h2>Music</h2>
+        <button id="musicForget" class="btn ghost" type="button" hidden><span>Forget</span></button>
+      </div>
+      <div id="musicTabs" class="seg" role="tablist" aria-label="Soundtrack" hidden></div>
+      <button id="musicGenerate" class="btn primary block" type="button" title="Opens Spotivibly with the 27-song tracklist filled in"><span>Generate in Spotivibly</span></button>
+      <p id="musicRadioNote" class="note">Your own copies play in nfsu2.xyz's Radio: F9, Radio, Music folder.</p>
+      <div class="mp">
+        <div class="mp-video">
+          <iframe id="musicPlayer" title="EA Trax video, played from YouTube by Spotivibly" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups allow-popups-to-escape-sandbox" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+        </div>
+        <div class="mp-controls">
+          <div class="row spread mp-np">
+            <div class="np"><b id="musicTitle"></b><span id="musicArtist"></span></div>
+            <span id="musicCount" class="chip"></span>
+          </div>
+          <div class="seek">
+            <span id="musicTime">0:00</span>
+            <input id="musicSeek" type="range" min="0" max="0" step="1" value="0" aria-label="Seek" disabled>
+            <span id="musicDur">--:--</span>
+          </div>
+          <div class="transport">
+            <button id="musicPrev" class="tbtn" type="button" aria-label="Previous song" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+            <button id="musicToggle" class="tbtn main" type="button" aria-label="Play" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg></button>
+            <button id="musicNext" class="tbtn" type="button" aria-label="Next song" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+          </div>
+          <p id="musicPlayerNote" class="note credit">Player: Spotivibly, full tracks from YouTube.</p>
+        </div>
+      </div>
+      <div class="songs-head">
+        <span class="row"><b>Songs</b> <span id="musicChip" class="chip" hidden></span></span>
+        <div id="musicFilter" class="seg" role="group" aria-label="Show songs" hidden>
+          <button id="musicAll" type="button" aria-pressed="true">All</button>
+          <button id="musicMissing" type="button" aria-pressed="false">Missing only</button>
+        </div>
+        <button id="musicScan" class="btn" type="button"><span>Check a music folder</span></button>
+        <input id="musicInput" type="file" webkitdirectory multiple hidden>
+      </div>
+      <p id="musicState" class="note" role="status"></p>
+      <div id="musicSoon" class="soon" role="status" hidden>
+        <b>Playlist coming soon</b>
+        <span>Spotivibly is putting together the NFSU1 EA Trax playlist. Until it is here, Generate in Spotivibly makes one from the soundtrack's name.</span>
+      </div>
+      <p id="musicNoFolder" class="note" hidden>nfsu2.xyz's Radio plays only NFSU2's 27 songs, so the folder check is on the NFSU2 tab.</p>
+      <p id="musicZips" class="note" hidden></p>
+      <ol id="musicList" class="songs" aria-label="EA Trax songs: pick one to play it"></ol>
+      <p id="musicNoneMissing" class="note" hidden>Every song is in your folder.</p>
+      <div id="musicFixes" hidden>
+        <p class="preset-title">Files the Radio will skip</p>
+        <ul id="musicFixList" class="fixes"></ul>
+      </div>
+      <a id="musicPlug" class="plug" target="_blank" rel="noopener">
+        <img src="../icons/spotivibly-96.png" alt="" width="28" height="28">
+        <span class="plug-t"><b>Spotivibly</b><span>Generate AI playlists for Spotify &amp; YouTube.</span></span>
+        <span class="plug-go">spotivibly.com<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17 17 7M9 7h8v8"/></svg></span>
+      </a>
+    </section>
+  </main>
+
+  <div class="dock">
+    <div id="musicMini" class="mini" role="region" aria-label="Now playing" hidden>
+      <div class="np"><b id="miniTitle"></b><span id="miniArtist"></span></div>
+      <button id="miniToggle" class="tbtn main" type="button" aria-label="Pause"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg></button>
+      <button id="miniNext" class="tbtn" type="button" aria-label="Next song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+    <div id="toast" class="toast" role="status" hidden>
+      <p id="toastText"></p>
+      <div id="toastProg" class="prog" role="progressbar" aria-label="Progress" aria-valuemin="0" aria-valuemax="100" hidden><i></i></div>
+      <div class="toast-actions">
+        <button id="toastUndo" class="btn" type="button" hidden><span>Undo</span></button>
+        <button id="reload" class="btn primary" type="button" hidden><span>Reload nfsu2.xyz</span></button>
+        <button id="dismiss" class="btn ghost" type="button"><span>Dismiss</span></button>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="panel.js"></script>
+  <script type="module" src="music-card.js"></script>
+</body>
+</html>

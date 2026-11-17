@@ -1,0 +1,12 @@
+{
+  "name": "nfsu2-save-editor-ext",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "Chrome extension that edits nfsu2.xyz career saves, with undo.",
+  "scripts": {
+    "test": "node test/jdlz.test.mjs && node test/music.test.mjs && node test/history.test.mjs && node test/labels.test.mjs && node test/garage.test.mjs && node test/store-build.test.cjs",
+    "test:ops": "node test/ops.test.mjs",
+    "build:store": "node tools/build-store.cjs"
+  }
+}
