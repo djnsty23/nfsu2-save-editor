@@ -34,8 +34,8 @@ const REGIONS = {
     'stale-check', 'group-lease-vars', 'group-lease', 'group-lease-end'],
 };
 /**
- * Text that only the old donor table carried ("hex" block strings, copied from GabriLex's unlicensed
- * nfsu2profilemaster). Change car now builds its blocks from the player's own GLOBALB.BUN, and no shipped file may
+ * Text that only the old prebuilt donor table carried ("hex" block strings of third-party origin). Change car now
+ * builds its blocks from the player's own GLOBALB.BUN, and no shipped file may
  * hold the table again.
  */
 const DONOR_MARK = /"hex"\s*:/;

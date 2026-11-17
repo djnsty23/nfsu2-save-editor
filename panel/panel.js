@@ -1395,6 +1395,7 @@ async function edit(label, change) {
 // { at, file, items: [{ profile, mode: 'add' | 'replace', afterHash, entryId }] }.
 const restoreKey = (saveDir) => `restore:last:${saveDir}`;
 const MAX_RESTORE_BYTES = 256 * 1024 * 1024;
+const MAX_GAME_DATA_BYTES = 64 * 1024 * 1024;
 const nameList = (names) => (names.length > 4 ? `${names.slice(0, 4).join(', ')} and ${names.length - 4} more` : names.join(', '));
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
@@ -1881,7 +1882,9 @@ function init() {
   $('dbFromSite').addEventListener('click', () => dbFromSite(false));
   $('dbFile').addEventListener('change', async (e) => {
     const f = e.target.files?.[0];
-    if (f) await loadDbFromBytes(new Uint8Array(await f.arrayBuffer()), f.name);
+    // The real GLOBALB.BUN is a few MB: a far larger pick is refused before it is read into memory.
+    if (f && f.size > MAX_GAME_DATA_BYTES) toast(`${f.name} is too large to be GLOBALB.BUN. Nothing was loaded.`, { kind: 'bad' });
+    else if (f) await loadDbFromBytes(new Uint8Array(await f.arrayBuffer()), f.name);
     e.target.value = '';
   });
   $('backupAll').addEventListener('click', downloadBackup);

@@ -60,7 +60,7 @@ try {
     const panel = read('panel/panel.js');
     check('the store panel keeps the edit path (write, history, Undo)', panel.includes('async function edit(') && panel.includes("type: 'write'") && panel.includes('hist.record('));
     check('the store panel never messages the worker', !/runtime\.sendMessage|toWorker|\blease\b/.test(panel), panel.match(/runtime\.sendMessage|toWorker|\blease\b/g)?.join(',') || '');
-    // E6: the unlicensed donor table is gone from both builds. The mark must fire on a line in the old table's shape,
+    // E6: the old prebuilt donor table is gone from both builds. The mark must fire on a line in the old table's shape,
     // and no shipped file, nor any file the repo tracks, may carry it.
     const { DONOR_MARK } = require('../tools/build-store.cjs');
     check('E6 the donor mark fires on a line in the old table\'s shape', DONOR_MARK.test('{ "off": 22640, "hex": "0A FF 3C" }'));

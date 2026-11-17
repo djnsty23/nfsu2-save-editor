@@ -2,11 +2,16 @@
 // Header: "JDLZ", 0x02, 0x10, 2 bytes unused, u32 LE decompressed size, u32 LE compressed size.
 // Two flag streams: the first picks literal or copy, the second picks the copy encoding.
 
+/** The real GLOBALB.BUN is a few MB. A header claiming more is not the game's file, so it is refused before allocating. */
+export const MAX_JDLZ_OUT = 64 * 1024 * 1024;
+
 /** @param {Uint8Array} input @returns {Uint8Array} */
 export function decompressJdlz(input) {
   if (!isJdlz(input)) throw new Error('not a JDLZ stream');
   const view = new DataView(input.buffer, input.byteOffset, input.byteLength);
-  const out = new Uint8Array(view.getUint32(8, true));
+  const size = view.getUint32(8, true);
+  if (size > MAX_JDLZ_OUT) throw new Error(`JDLZ header claims ${size} bytes, more than the ${MAX_JDLZ_OUT} a game file can be`);
+  const out = new Uint8Array(size);
   let inPos = 16, outPos = 0, flags1 = 1, flags2 = 1;
   while (inPos < input.length && outPos < out.length) {
     if (flags1 === 1) flags1 = input[inPos++] | 0x100;

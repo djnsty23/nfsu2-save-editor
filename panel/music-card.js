@@ -226,6 +226,8 @@ const player = {
 
   /** I11: the compact player shows while a song has started and the full player is scrolled out of view. */
   playerInView: true,
+  /** The player frame loads only once the Music card is near the view (or at once without IntersectionObserver). */
+  armed: false,
   paintMini() {
     const mp = $('music').querySelector('.mp');
     $('musicMini').hidden = this.playerInView || !this.state.started || mp.hidden || !set.embed;
@@ -237,8 +239,9 @@ const player = {
     this.state = { ...IDLE };
     this.map = songs().map((_, i) => i);
     $('musicPlayer').title = `${set.label} EA Trax video, played from YouTube by Spotivibly`;
-    // No playlist yet: blank the frame, which also stops the other soundtrack's video.
-    $('musicPlayer').src = set.embed ?? 'about:blank';
+    // No playlist yet: blank the frame, which also stops the other soundtrack's video. Until the Music card nears the
+    // view the frame stays blank, so the third-party player is not loaded for people who never scroll to it.
+    $('musicPlayer').src = this.armed ? set.embed ?? 'about:blank' : 'about:blank';
   },
 
   /** Ask for the ready event until the player answers: its listener exists only once the playlist has loaded. */
@@ -254,7 +257,8 @@ const player = {
 
   init() {
     addEventListener('message', (e) => this.onMessage(e));
-    $('musicPlayer').addEventListener('load', () => { this.ready = false; if (set.embed) this.hello(); });
+    $('musicPlayer').addEventListener('load', () => { this.ready = false; if (set.embed && this.armed) this.hello(); });
+    if (typeof IntersectionObserver !== 'function') this.armed = true;
     this.load();
     $('musicToggle').addEventListener('click', () => this.send('toggle'));
     $('musicPrev').addEventListener('click', () => this.send('prev'));
@@ -266,6 +270,13 @@ const player = {
         for (const e of entries) this.playerInView = e.isIntersecting;
         this.paintMini();
       }).observe($('music').querySelector('.mp'));
+      const arm = new IntersectionObserver((entries) => {
+        if (this.armed || !entries.some((e) => e.isIntersecting)) return;
+        this.armed = true;
+        arm.disconnect();
+        this.load();
+      }, { rootMargin: '600px 0px' });
+      arm.observe($('music'));
     }
     const seek = $('musicSeek');
     seek.addEventListener('input', () => { this.seeking = true; $('musicTime').textContent = fmt(Number(seek.value)); });
