@@ -4,11 +4,16 @@
   "version": "0.2.0",
   "description": "Edit your nfsu2.xyz career saves offline: money, unlock all, performance, unique parts, story stage, with undo.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "sidePanel", "alarms", "scripting", "offscreen"],
+  "permissions": ["storage", "sidePanel", "alarms", "scripting"],
   "host_permissions": ["https://nfsu2.xyz/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_title": "NFSU2 Save Editor" },
   "side_panel": { "default_path": "panel/panel.html" },
+  "commands": {
+    "music-toggle": { "description": "Music: play or pause" },
+    "music-next": { "description": "Music: next song" },
+    "music-prev": { "description": "Music: previous song" }
+  },
   "content_scripts": [
     { "matches": ["https://nfsu2.xyz/*"], "js": ["content.js"], "run_at": "document_idle", "all_frames": false }
   ],

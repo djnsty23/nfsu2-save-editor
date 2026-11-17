@@ -383,7 +383,7 @@ body[data-mode="readonly"] .money-read { display: inline; }
 .prog { height: 6px; border-radius: 3px; background: color-mix(in srgb, var(--fg) 12%, transparent); overflow: hidden; }
 .prog[hidden] { display: none; }
 .prog i { display: block; height: 100%; width: var(--p, 0%); background: var(--accent); transition: width .3s ease; }
-.mini { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 10px; align-items: center; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 6px 18px rgb(0 0 0 / .14); }
+.mini { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; gap: 10px; align-items: center; padding: 8px 10px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 6px 18px rgb(0 0 0 / .14); }
 .mini[hidden] { display: none; }
 .mini .np { display: grid; min-width: 0; }
 .mini .np b, .mini .np span { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

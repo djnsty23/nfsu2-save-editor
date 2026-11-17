@@ -45,25 +45,20 @@ try {
     walk(out);
     const read = (f) => fs.readFileSync(path.join(out, f), 'utf8');
     const manifest = JSON.parse(read('manifest.json'));
-    check('the store manifest asks for storage, unlimitedStorage, sidePanel, scripting and offscreen only (no alarms)', manifest.permissions.slice().sort().join(',') === 'offscreen,scripting,sidePanel,storage,unlimitedStorage', manifest.permissions.join(','));
+    check('the store manifest asks for storage, unlimitedStorage, sidePanel and scripting only (no alarms)', manifest.permissions.slice().sort().join(',') === 'scripting,sidePanel,storage,unlimitedStorage', manifest.permissions.join(','));
     check('the store manifest keeps the one host permission, nfsu2.xyz', JSON.stringify(manifest.host_permissions) === '["https://nfsu2.xyz/*"]', JSON.stringify(manifest.host_permissions));
     check('the store manifest declares no externally_connectable, web_accessible_resources or content_security_policy override',
       !('externally_connectable' in manifest) && !('web_accessible_resources' in manifest) && !('content_security_policy' in manifest));
     const devOnly = files.filter((f) => /^(test|tools|dist)\/|^(README\.md|package\.json|build\.json|\.gitignore)$/.test(f));
     check('no dev file ships (test/, tools/, README.md, package.json, build.json)', devOnly.length === 0, devOnly.join(', '));
-    for (const f of ['manifest.json', 'background.js', 'content.js', 'panel/panel.html', 'panel/panel.js', 'panel/music-card.js', 'panel/offscreen.html', 'panel/offscreen.js', 'src/ops.js', 'src/preset-worker.js', 'vendor/hackch/LICENSE', 'icons/icon128.png']) {
+    for (const f of ['manifest.json', 'background.js', 'content.js', 'panel/panel.html', 'panel/panel.js', 'panel/music-card.js', 'src/ops.js', 'src/preset-worker.js', 'vendor/hackch/LICENSE', 'icons/icon128.png']) {
       check(`ships ${f}`, files.includes(f));
     }
     const bg = read('background.js');
     check('the store worker keeps the side panel behaviour and the content script re-injection', bg.includes('setPanelBehavior') && bg.includes('onInstalled') && bg.includes("files: ['content.js']"));
-    // The music handoff is the store worker's only listener: it is checked on its own, and the rest must stay bare.
-    const MUSIC = '// ---- Music after the panel closes';
-    const at = bg.indexOf(MUSIC), core = at < 0 ? bg : bg.slice(0, at), handoff = at < 0 ? '' : bg.slice(at);
-    check('the store worker carries the music handoff, last in the file', at > 0 && handoff.includes("port.name !== 'music'") && handoff.includes("msg?.type !== 'musicOff'"));
-    check('the music handoff listens only to the panel page and the offscreen page',
-      (handoff.match(/runtime\.on\w+\.addListener/g) || []).join() === 'runtime.onConnect.addListener,runtime.onMessage.addListener'
-      && handoff.includes('!port.sender.url?.startsWith(SONG_PAGE)') && handoff.includes('!sender.url?.startsWith(OFFSCREEN_URL)'));
-    check('the rest of the store worker has no message listener, alarm, stamp or reload', !/onMessage|alarms|build\.json|runtime\.reload|storage\.session/.test(core), core.match(/onMessage\w*|alarms|build\.json|runtime\.reload|storage\.session/g)?.join(',') || '');
+    // Session storage stays for the music handover (panel/now-playing.js). The dev-only stamp and write leases must not.
+    check('the store worker has no message listener, alarm, stamp, lease or reload', !/onMessage|alarms|build\.json|runtime\.reload|loadedBuild|writeLeases/.test(bg), bg.match(/onMessage\w*|alarms|build\.json|runtime\.reload|loadedBuild|writeLeases/g)?.join(',') || '');
+    check('the store worker keeps the music handover to the player window', bg.includes("'panel/player.html'") && bg.includes('onConnect') && bg.includes('setPopup'));
     const panel = read('panel/panel.js');
     check('the store panel keeps the edit path (write, history, Undo)', panel.includes('async function edit(') && panel.includes("type: 'write'") && panel.includes('hist.record('));
     check('the store panel never messages the worker', !/runtime\.sendMessage|toWorker|\blease\b/.test(panel), panel.match(/runtime\.sendMessage|toWorker|\blease\b/g)?.join(',') || '');

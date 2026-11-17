@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NFSU2 Save Editor</title>
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="music-pages.css">
+</head>
+<body class="pop">
+  <section id="popPlaying" class="pop-now" aria-label="Now playing" hidden>
+    <div class="np"><b id="popTitle"></b><span id="popArtist"></span></div>
+    <div class="seek">
+      <span id="popTime">0:00</span>
+      <div class="bar" role="progressbar" aria-label="Song progress" aria-valuemin="0" aria-valuemax="100"><i id="popBar"></i></div>
+      <span id="popDur">--:--</span>
+    </div>
+    <div class="transport">
+      <button id="popPrev" class="tbtn" type="button" aria-label="Previous song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+      <button id="popToggle" class="tbtn main" type="button" aria-label="Play"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg></button>
+      <button id="popNext" class="tbtn" type="button" aria-label="Next song"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+    </div>
+  </section>
+  <p id="popIdle" class="note" hidden>Nothing is playing. Open the editor and pick a song in the Music card.</p>
+  <div class="pop-actions">
+    <button id="popShow" class="btn" type="button" hidden><span>Show player</span></button>
+    <button id="popEditor" class="btn primary" type="button"><span>Open editor</span></button>
+  </div>
+  <script type="module" src="popup.js"></script>
+  <script type="module" src="tips.js"></script>
+</body>
+</html>

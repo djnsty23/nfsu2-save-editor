@@ -3,6 +3,7 @@
 // the playlist: a row plays that song in the framed Spotivibly player (full tracks from YouTube), whose video is all
 // it shows, under the panel's own controls. Generate in Spotivibly opens the generator with the tracklist filled in.
 import * as music from '../src/music.js';
+import { NOW, readCommand, sendCommand, stateWriter, fmt, ICON, isPlaying } from './now-playing.js';
 
 const $ = (id) => document.getElementById(id);
 const SAVED = 'musicScan';
@@ -147,39 +148,12 @@ function render(saved) {
 
 const PLAYER_ORIGIN = new URL(music.SPOTIVIBLY_EMBED).origin;
 const IDLE = { index: 0, status: 'idle', started: false, time: 0, duration: 0, failed: [], unavailable: false };
-const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
-const ICON = { play: 'M7 4v16l13-8z', pause: 'M6 4h4v16H6zM14 4h4v16h-4z' };
-
-/**
- * The panel's line to background.js, which plays the song on in an offscreen page when the panel closes (Chrome ends
- * the panel's page, and its player, on close). The panel reports the player's state as it changes, at most every
- * 2 seconds while nothing else changes, and reconnects when the worker restarts.
- */
-const bridge = {
-  port: null,
-  sent: '',
-  sentAt: 0,
-  connect() {
-    try { this.port = chrome.runtime.connect({ name: 'music' }); } catch { this.port = null; return; }
-    this.port.onMessage.addListener((m) => player.onBridge(m));
-    this.port.onDisconnect.addListener(() => { this.port = null; this.sent = ''; setTimeout(() => this.connect(), 250); });
-  },
-  post(m) { try { this.port?.postMessage(m); } catch { /* reconnecting */ } },
-  report(s) {
-    const sig = `${set.key}:${s.index}:${s.status}`, now = Date.now();
-    if (sig === this.sent && now - this.sentAt < 2000) return;
-    this.sent = sig;
-    this.sentAt = now;
-    this.post({ type: 'state', key: set.key, index: s.index, time: s.time, status: s.status });
-  },
-};
+// This panel's id in the shared state: the worker moves the music to the player window only for the panel that played it.
+const OWNER = crypto.randomUUID();
+const write = stateWriter('panel', OWNER);
 
 const player = {
   ready: false,
-  /** The soundtrack whose song is playing offscreen, to take back once this player is ready. */
-  handback: null,
-  /** A second to seek to once the song taken back plays: { index, time }. */
-  resumeAt: null,
   map: music.EA_TRAX.map((_, i) => i), // list index -> player track index
   state: { ...IDLE },
   seeking: false,
@@ -191,15 +165,9 @@ const player = {
 
   /** The EA song the player is on. */
   song() {
-    // Before any song starts, the card shows the list's first row, which Play starts (play()).
+    // Before any song starts, the card shows the list's first row, which Play starts (command()).
     const k = this.state.started ? this.map.indexOf(this.state.index) : -1;
     return k >= 0 ? k : 0;
-  },
-
-  /** Play or pause. Nothing started yet: start the list's first song, not the player's first track. */
-  play() {
-    if (!this.state.started && this.map[0] >= 0) this.send('load', { index: this.map[0] });
-    else this.send('toggle');
   },
 
   onMessage(e) {
@@ -208,7 +176,6 @@ const player = {
     if (!m) return;
     if (m.type === 'ready') {
       this.ready = true;
-      if (this.handback === set.key) { this.handback = null; bridge.post({ type: 'takeover' }); }
       if (set.tracks) this.map = music.mapTracks(m.tracks);
       else {
         // A soundtrack without its own list shows the player's songs, sorted into the game's order when it has one.
@@ -218,47 +185,48 @@ const player = {
       }
     } else {
       this.state = m;
-      const r = this.resumeAt;
-      if (r && m.index === r.index && m.status === 'playing' && m.duration > 0) {
-        this.resumeAt = null;
-        if (r.time >= 1 && r.time < m.duration - 2) this.send('seek', { seconds: Math.floor(r.time) });
+      if (m.started && !this.remote) {
+        const k = this.song(), song = songs()[k] ?? {};
+        write({ set: set.key, song: k, title: song.title ?? '', artist: song.artist ?? '', status: m.status, started: m.started, time: m.time, duration: m.duration });
       }
-      bridge.report(m);
     }
     this.paint();
   },
 
-  /** background.js: a song plays offscreen (handback), or here it is to play on (resume). */
-  onBridge(m) {
-    if (m?.type === 'handback' && music.SOUNDTRACKS.some((s) => s.key === m.key && s.embed)) {
-      this.handback = m.key;
-      if (set.key !== m.key) choose(m.key);
-      // Load the player now, even with the Music card out of view: the song is already playing.
-      if (!this.armed) { this.armed = true; this.load(); } else if (this.ready) { this.handback = null; bridge.post({ type: 'takeover' }); }
-    } else if (m?.type === 'resume' && m.song && m.song.key === set.key && Number.isInteger(m.song.index) && m.song.index >= 0) {
-      this.resumeAt = { index: m.song.index, time: Number(m.song.time) || 0 };
-      this.send('load', { index: m.song.index });
-    }
+  /** The player window's state while it owns the music, else null. The panel then drives the window, not its frame. */
+  remote: null,
+  /** The shared state as last read, whoever owns it. */
+  now: null,
+
+  /** A command from a button here: to the window while it plays, else to this panel's frame. */
+  command(action, extra = {}) {
+    if (this.remote) { sendCommand(action, extra); return; }
+    if (action === 'load') { const at = this.map[extra.song]; if (at >= 0) this.send('load', { index: at }); return; }
+    // Nothing started yet: Play starts the list's first row, which the card shows, not the player's first track.
+    if (action === 'toggle' && !this.state.started && this.map[0] >= 0) { this.send('load', { index: this.map[0] }); return; }
+    this.send(action, action === 'seek' ? { seconds: extra.seconds } : {});
   },
 
   paint() {
-    const s = this.state, k = this.song(), list = songs(), song = list[k] ?? { title: 'Loading the songs…', artist: '' };
-    const playing = s.status === 'playing' || s.status === 'buffering';
+    const r = this.remote && this.remote.set === set.key ? this.remote : null;
+    const s = r ? { ...IDLE, ...r } : this.state, k = r ? r.song : this.song(), list = songs(), song = list[k] ?? { title: 'Loading the songs…', artist: '' };
+    const playing = isPlaying(s);
+    const live = r ? true : this.ready && !this.remote;
     $('musicTitle').textContent = song.title;
     $('musicArtist').textContent = song.artist;
     $('musicCount').textContent = list.length ? `${k + 1} of ${list.length}` : '';
-    for (const id of ['musicPrev', 'musicToggle', 'musicNext']) $(id).disabled = !this.ready || s.unavailable;
+    for (const id of ['musicPrev', 'musicToggle', 'musicNext']) $(id).disabled = !live || s.unavailable;
     for (const t of [$('musicToggle'), $('miniToggle')]) {
       t.setAttribute('aria-label', playing ? 'Pause' : 'Play');
       t.querySelector('path').setAttribute('d', playing ? ICON.pause : ICON.play);
     }
     $('miniTitle').textContent = song.title;
     $('miniArtist').textContent = song.artist;
-    for (const id of ['miniToggle', 'miniNext']) $(id).disabled = !this.ready || s.unavailable;
+    for (const id of ['miniPrev', 'miniToggle', 'miniNext']) $(id).disabled = !live || s.unavailable;
     this.paintMini();
     const known = s.duration > 0;
     const seek = $('musicSeek');
-    seek.disabled = !this.ready || !known;
+    seek.disabled = !live || !known;
     seek.max = String(known ? Math.floor(s.duration) : 0);
     if (!this.seeking) {
       seek.value = String(Math.floor(Math.min(s.time, s.duration)));
@@ -266,14 +234,17 @@ const player = {
     }
     seek.setAttribute('aria-valuetext', `${$('musicTime').textContent} of ${known ? fmt(s.duration) : 'unknown'}`);
     $('musicDur').textContent = known ? fmt(s.duration) : '--:--';
-    $('musicPlayerNote').textContent = s.unavailable
-      ? 'The YouTube player could not load. Check your connection and reopen the panel.'
-      : this.ready ? 'Player: Spotivibly, full tracks from YouTube.' : 'Loading the player…';
+    $('musicPlayerNote').textContent = this.remote
+      ? (r ? 'Playing in the player window. These controls drive it, and closing that window stops the music.'
+        : `The player window is playing ${music.SOUNDTRACKS.find((t) => t.key === this.remote.set)?.label ?? 'another soundtrack'}. Close it to play here.`)
+      : s.unavailable
+        ? 'The YouTube player could not load. Check your connection and reopen the panel.'
+        : this.ready ? 'Player: Spotivibly, full tracks from YouTube.' : 'Loading the player…';
     for (const li of $('musicList').children) {
       const i = Number(li.dataset.i), on = s.started && i === k;
-      const failed = s.failed.includes(this.map[i]) || this.map[i] < 0;
+      const failed = !r && (s.failed.includes(this.map[i]) || this.map[i] < 0);
       li.setAttribute('aria-current', on ? 'true' : 'false');
-      li.querySelector('.song-btn').disabled = !this.ready || failed;
+      li.querySelector('.song-btn').disabled = !live || failed;
       const st = li.querySelector('.song-st');
       st.textContent = failed ? 'Unavailable' : on ? (playing ? 'Playing' : 'Paused') : STATUS_TEXT[li.dataset.st];
     }
@@ -285,14 +256,16 @@ const player = {
   armed: false,
   paintMini() {
     const mp = $('music').querySelector('.mp');
-    $('musicMini').hidden = this.playerInView || !this.state.started || mp.hidden || !set.embed;
+    const started = this.remote ? this.remote.set === set.key && this.remote.started : this.state.started;
+    $('musicMini').hidden = this.playerInView || !started || mp.hidden || !set.embed;
   },
 
   /** Points the frame at the current soundtrack's player and forgets the last one's state. */
   load() {
     this.ready = false;
     this.state = { ...IDLE };
-    bridge.report(this.state);
+    // The frame's song stops here: if it was this panel's, nothing plays any more, and closing must open no window.
+    if (this.now?.where === 'panel' && this.now.owner === OWNER) chrome.storage.session.remove(NOW).catch(() => {});
     this.map = songs().map((_, i) => i);
     $('musicPlayer').title = `${set.label} EA Trax video, played from YouTube by Spotivibly`;
     // No playlist yet: blank the frame, which also stops the other soundtrack's video. Until the Music card nears the
@@ -313,15 +286,22 @@ const player = {
 
   init() {
     addEventListener('message', (e) => this.onMessage(e));
-    bridge.connect();
     $('musicPlayer').addEventListener('load', () => { this.ready = false; if (set.embed && this.armed) this.hello(); });
     if (typeof IntersectionObserver !== 'function') this.armed = true;
     this.load();
-    $('musicToggle').addEventListener('click', () => this.play());
-    $('musicPrev').addEventListener('click', () => this.send('prev'));
-    $('musicNext').addEventListener('click', () => this.send('next'));
-    $('miniToggle').addEventListener('click', () => this.play());
-    $('miniNext').addEventListener('click', () => this.send('next'));
+    for (const [id, action] of [['musicToggle', 'toggle'], ['musicPrev', 'prev'], ['musicNext', 'next'], ['miniToggle', 'toggle'], ['miniPrev', 'prev'], ['miniNext', 'next']]) {
+      $(id).addEventListener('click', () => this.command(action));
+    }
+    // Media keys and the popup: act only while this panel's own frame has the music.
+    chrome.runtime.onMessage.addListener((msg, sender) => {
+      const cmd = readCommand(msg, sender);
+      // Only the panel that has the music acts, so a second open panel never starts a second sound.
+      if (cmd && !this.remote && this.ready && this.now?.owner === OWNER) this.command(cmd.action, cmd);
+      return false;
+    });
+    this.connect();
+    chrome.storage.session.get(NOW).then((g) => this.follow(g[NOW]), () => {});
+    chrome.storage.session.onChanged.addListener((ch) => { if (ch[NOW]) this.follow(ch[NOW].newValue); });
     if (typeof IntersectionObserver === 'function') {
       new IntersectionObserver((entries) => {
         for (const e of entries) this.playerInView = e.isIntersecting;
@@ -337,13 +317,29 @@ const player = {
     }
     const seek = $('musicSeek');
     seek.addEventListener('input', () => { this.seeking = true; $('musicTime').textContent = fmt(Number(seek.value)); });
-    seek.addEventListener('change', () => { this.send('seek', { seconds: Number(seek.value) }); this.seeking = false; });
+    seek.addEventListener('change', () => { this.command('seek', { seconds: Number(seek.value) }); this.seeking = false; });
     $('musicList').addEventListener('click', (e) => {
       const li = e.target.closest('.song');
-      if (!li || !this.ready) return;
-      const at = this.map[Number(li.dataset.i)];
-      if (at >= 0) this.send('load', { index: at });
+      if (!li || !(this.remote || this.ready)) return;
+      this.command('load', { song: Number(li.dataset.i) });
     });
+    this.paint();
+  },
+
+  /** Holds a port to the worker while the panel is open. A worker that slept drops it: connect again. */
+  connect() {
+    try {
+      chrome.runtime.connect({ name: `panel:${OWNER}` }).onDisconnect.addListener(() => setTimeout(() => this.connect(), 100));
+    } catch { /* the extension was reloaded: this panel went with it */ }
+  },
+
+  /** Follows the shared state: while the player window owns the music, this panel is its remote. */
+  follow(s) {
+    const was = !!this.remote;
+    this.now = s ?? null;
+    this.remote = s?.where === 'window' ? s : null;
+    // The window took over while this frame still played: pause it, one sound at a time.
+    if (this.remote && !was && isPlaying(this.state)) this.send('toggle');
     this.paint();
   },
 };
@@ -429,7 +425,7 @@ function init() {
   $('musicAll').addEventListener('click', () => { filter = 'all'; paintFilter(); });
   $('musicMissing').addEventListener('click', () => { filter = 'missing'; paintFilter(); });
   chrome.storage.local.get([SAVED, PICKED]).then((r) => {
-    if (r[PICKED] && r[PICKED] !== set.key && !player.handback) choose(r[PICKED]);
+    if (r[PICKED] && r[PICKED] !== set.key) choose(r[PICKED]);
     const saved = music.readScan(r[SAVED]);
     render(saved);
     if (r[SAVED] != null && !saved) { $('musicState').textContent = 'The last folder check could not be read. Check the folder again.'; $('musicForget').hidden = false; }

@@ -105,7 +105,15 @@ export const TIPS = [
   ['#musicForget', 'Forget the music folder check.'],
   ['#musicPlug', 'Opens spotivibly.com in a new tab.'],
   ['#miniToggle', 'Play or pause.'],
+  ['#miniPrev', 'Previous song.'],
   ['#miniNext', 'Next song.'],
+
+  // Player window and toolbar popup
+  ['#winPrev, #popPrev', 'Previous song.'],
+  ['#winToggle, #popToggle', 'Play or pause.'],
+  ['#winNext, #popNext', 'Next song.'],
+  ['#popShow', 'Brings the player window to the front.'],
+  ['#popEditor', 'Opens the save editor in the side panel.'],
 
   // Toast
   ['#toastUndo', 'Undoes the edit just made.'],

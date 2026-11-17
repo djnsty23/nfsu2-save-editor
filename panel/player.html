@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EA Trax player</title>
+  <link rel="stylesheet" href="panel.css">
+  <link rel="stylesheet" href="music-pages.css">
+</head>
+<body class="win">
+  <div class="mp-video">
+    <iframe id="winPlayer" title="EA Trax video, played from YouTube by Spotivibly" sandbox="allow-scripts allow-same-origin allow-presentation allow-popups" allow="autoplay; encrypted-media; fullscreen; picture-in-picture" referrerpolicy="strict-origin-when-cross-origin"></iframe>
+  </div>
+  <div class="bar-row">
+    <div class="np"><b id="winTitle">Loading the songs…</b><span id="winArtist"></span></div>
+    <span id="winTime" class="chip">0:00</span>
+    <button id="winPrev" class="tbtn" type="button" aria-label="Previous song" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+    <button id="winToggle" class="tbtn main" type="button" aria-label="Play" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg></button>
+    <button id="winNext" class="tbtn" type="button" aria-label="Next song" disabled><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+  </div>
+  <p id="winNote" class="note credit">Playing here because the editor panel closed. Close this window to stop the music.</p>
+  <script type="module" src="player.js"></script>
+  <script type="module" src="tips.js"></script>
+</body>
+</html>

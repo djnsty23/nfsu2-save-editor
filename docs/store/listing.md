@@ -88,7 +88,6 @@ with undo.
 | `storage` | Keeps the undo history (a copy of each save before every edit, plus each profile's original), the game data the user loaded, the offline-only confirmation and the last music folder check, on the user's computer only. |
 | `unlimitedStorage` | The undo history keeps each profile's original save (about 87 KB) for Restore original, and a restore keeps a copy of every profile it replaces. Without it the 10 MB default fills over time and every edit is refused. The data never leaves the computer. |
 | `sidePanel` | The editor is a side panel that sits beside the nfsu2.xyz game tab. |
-| `offscreen` | Keeps the song the user is playing in the music card going after the side panel closes. Chrome ends the panel's page on close, so the extension opens one hidden page (reason: audio playback) with the same Spotivibly player, only when a song is playing at that moment, and closes it when the panel opens again. It reads and sends no user data. |
 | `scripting` | Puts the editor's content script back into nfsu2.xyz tabs that were already open when the extension was installed, updated or re-enabled, so the user does not have to reload the game. Only ever targets nfsu2.xyz tabs, with the extension's own `content.js`. |
 | Host `https://nfsu2.xyz/*` | The saves live in nfsu2.xyz's browser storage, so the content script must run on that site to read and write them. No other site is accessed. |
 
@@ -97,7 +96,7 @@ The backup is saved through a normal download link made in the panel, so the ext
 
 **Remote code:** No, I am not using remote code. All JavaScript ships in the package. The music player is a
 cross-origin iframe (spotivibly.com, which embeds YouTube). It runs in its own origin and receives only play, pause, seek and
-track commands by postMessage. The same player runs in the offscreen page while a song plays on after the panel closes.
+track commands by postMessage. The same player runs in a small visible window while a song plays on after the panel closes.
 
 **Data usage** (what the dashboard asks the developer to disclose as collected):
 none of the listed categories. The extension reads save files on nfsu2.xyz and keeps undo copies in

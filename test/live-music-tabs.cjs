@@ -28,6 +28,7 @@ addEventListener('message', (e) => {
   if (!c || c.type !== 'spotivibly:command') return;
   if (c.action === 'hello') { say({ type: 'spotivibly:ready', tracks }); state('idle'); }
   if (c.action === 'load') { index = c.index; state('playing'); }
+  if (c.action === 'toggle') { state('paused'); }
 });
 </script>`;
 
@@ -148,7 +149,12 @@ async function run(ext, label) {
       check(`${at} Generate is still the only primary button`, (await panel.$$eval('#music .btn.primary', (l) => l.map((b) => b.id))).join() === 'musicGenerate');
       await panel.locator('#music').screenshot({ path: path.join(outDir, `tabs-${label}-u1-${width}.png`) });
 
-      // The pick survives reopening the panel.
+      // The pick survives reopening the panel. Pause first: closing the panel mid-song hands the music to the player
+      // window (test/live-handoff.cjs), and this check is about the pick, not the handover.
+      if (!soon) {
+        await panel.locator('#musicToggle').click();
+        await panel.waitForFunction(() => document.getElementById('musicToggle').getAttribute('aria-label') === 'Play', null, { timeout: 5000 });
+      }
       await panel.reload();
       await open();
       await panel.waitForFunction(() => document.querySelector('#musicTabs [aria-selected="true"]')?.dataset.set === 'u1', null, { timeout: 8000 }).catch(() => {});

@@ -1,0 +1,17 @@
+/* The player window and the toolbar popup. Both load panel.css first and reuse its tokens, buttons and tips. */
+
+/* Player window: the video on top at YouTube's 200 px minimum or more, one control row under it. */
+body.win { padding: 8px; display: grid; gap: 8px; align-content: start; }
+.win .mp-video { min-height: 200px; }
+.bar-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto auto; gap: 8px; align-items: center; }
+.bar-row .chip { font-variant-numeric: tabular-nums; }
+.win .note { margin: 0; }
+
+/* Toolbar popup: fixed width, its height follows the content. */
+body.pop { width: 300px; padding: 12px; display: grid; gap: 12px; }
+.pop-now { display: grid; gap: 8px; }
+.pop-now[hidden], .pop .note[hidden], .pop .btn[hidden] { display: none; }
+.pop .seek .bar { flex: 1 1 auto; height: 6px; }
+.pop .bar i { display: block; height: 100%; width: 0; background: var(--accent); }
+.pop-actions { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 8px; }
+.pop .note { margin: 0; }

@@ -1,5 +1,66 @@
-// Clicking the toolbar icon opens the side panel.
-chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: true }).catch((err) => console.error('sidePanel', err));
+// ---- Music after the panel closes ----------------------------------------------------------------
+// The panel holds a port named "panel:<id>" while open and writes what it plays to session storage (panel/now-playing.js).
+// When that port drops while its song plays, the panel was closed mid-song: the music moves to a small player window,
+// which shows the video (YouTube allows no hidden player). While that window is open the toolbar button shows the
+// popup with the controls instead of the panel. Closing the window stops the music.
+const NOW = 'nowPlaying', HANDOFF = 'musicHandoff', PLAYER_WIN = 'musicWindow';
+const MUSIC_PAGES = chrome.runtime.getURL('panel/');
+
+// Clicking the toolbar icon opens the side panel, or the music popup while the player window is open. Both settings
+// follow the window from session storage, in one queue, so a worker that wakes on a window event cannot set them from
+// a stale read.
+let actionQueue = Promise.resolve();
+function syncAction() {
+  actionQueue = actionQueue.then(async () => {
+    const open = !!(await chrome.storage.session.get(PLAYER_WIN))[PLAYER_WIN];
+    await chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: !open });
+    await chrome.action.setPopup({ popup: open ? 'panel/popup.html' : '' });
+  }).catch((err) => console.error('toolbar action', err));
+  return actionQueue;
+}
+syncAction();
+
+async function panelClosed(owner) {
+  const got = await chrome.storage.session.get([NOW, PLAYER_WIN]);
+  const s = got[NOW];
+  if (!s || s.where !== 'panel' || s.owner !== owner) return;
+  // Quitting Chrome also closes the panel: with no browser window left, the music stops with it.
+  const browsers = await chrome.windows.getAll({ windowTypes: ['normal'] });
+  if (!(s.status === 'playing' || s.status === 'buffering') || got[PLAYER_WIN] || !browsers.length) {
+    await chrome.storage.session.remove(NOW);
+    return;
+  }
+  await chrome.storage.session.set({ [HANDOFF]: { set: s.set, song: s.song, time: s.time } });
+  const win = await chrome.windows.create({ url: chrome.runtime.getURL('panel/player.html'), type: 'popup', width: 420, height: 400, focused: false });
+  await chrome.storage.session.set({ [PLAYER_WIN]: win.id });
+  await syncAction();
+}
+
+chrome.runtime.onConnect.addListener((port) => {
+  const owner = /^panel:([\w-]{1,64})$/.exec(port.name)?.[1];
+  if (!owner || port.sender?.id !== chrome.runtime.id || !port.sender.url?.startsWith(MUSIC_PAGES)) return;
+  port.onDisconnect.addListener(() => panelClosed(owner).catch((err) => console.error('music handoff', err)));
+});
+
+chrome.windows.onRemoved.addListener(async (id) => {
+  try {
+    const got = await chrome.storage.session.get([NOW, PLAYER_WIN]);
+    if (got[PLAYER_WIN] !== id) return;
+    await chrome.storage.session.remove([PLAYER_WIN, HANDOFF]);
+    if (got[NOW]?.where === 'window') await chrome.storage.session.remove(NOW);
+    await syncAction();
+  } catch (err) {
+    console.error('music window', err);
+  }
+});
+
+// Media keys. The commands ship with no default shortcut, so they never take a key from another app: the player picks
+// one in chrome://extensions/shortcuts. The owner of the sound acts on the message.
+chrome.commands.onCommand.addListener((name) => {
+  const action = { 'music-toggle': 'toggle', 'music-next': 'next', 'music-prev': 'prev' }[name];
+  if (action) chrome.runtime.sendMessage({ type: 'music:cmd', action }).catch(() => {});
+});
+
 
 // @dev-only begin worker
 // Everything down to "@dev-only end worker" serves the unpacked dev install only: tools/build-store.cjs leaves it out
@@ -196,78 +257,4 @@ chrome.runtime.onInstalled.addListener(async () => {
   } catch (err) {
     console.error('reinject', err);
   }
-});
-
-// ---- Music after the panel closes ------------------------------------------------------------------
-// Chrome ends the side panel's page, and the player frame in it, when the panel closes. While the panel is open it
-// reports the player's state here over a "music" port. When the last panel closes with a song playing, an offscreen
-// document plays that song on from the same second. The next panel to open takes the song back and closes it.
-// Nothing is made offscreen for anyone who never played a song, so the third-party player still loads only on use.
-const OFFSCREEN_URL = chrome.runtime.getURL('panel/offscreen.html');
-const SONG_PAGE = chrome.runtime.getURL('panel/panel.html');
-const musicPorts = new Set();
-const sounding = (s) => s?.status === 'playing' || s?.status === 'buffering';
-
-/** A player state from the panel or the offscreen page, or null. Only these fields leave either page. */
-function readSong(m) {
-  const int = (v) => Number.isInteger(v) && v >= 0;
-  const num = (v) => typeof v === 'number' && Number.isFinite(v) && v >= 0;
-  if (!m || typeof m.key !== 'string' || !/^[a-z0-9]{1,8}$/.test(m.key) || !int(m.index) || !num(m.time)
-    || !['idle', 'playing', 'paused', 'buffering'].includes(m.status)) return null;
-  return { key: m.key, index: m.index, time: m.time, status: m.status, at: Date.now() };
-}
-
-/** Where the song is now: its last reported second plus the time since, while it plays. */
-const songTime = (s) => s.time + (sounding(s) ? Math.max(0, (Date.now() - s.at) / 1000) : 0);
-
-const offscreenOpen = async () => (await chrome.runtime.getContexts({ contextTypes: ['OFFSCREEN_DOCUMENT'] }))
-  .some((c) => c.documentUrl?.startsWith(OFFSCREEN_URL));
-
-async function handOff() {
-  if (musicPorts.size) return;
-  const { musicPanel: s } = await chrome.storage.session.get('musicPanel');
-  if (!sounding(s) || await offscreenOpen()) return;
-  const q = new URLSearchParams({ key: s.key, index: String(s.index), time: String(Math.floor(songTime(s))) });
-  await chrome.storage.session.set({ musicOff: { ...s, time: songTime(s), at: Date.now() } });
-  await chrome.offscreen.createDocument({ url: `panel/offscreen.html?${q}`, reasons: ['AUDIO_PLAYBACK'],
-    justification: 'Keeps the EA Trax song playing after the side panel closes.' });
-}
-
-/** The song playing offscreen, closed and returned, so the panel can play it on. Null when none is playing. */
-async function takeBack() {
-  if (!(await offscreenOpen())) return null;
-  const { musicOff: s } = await chrome.storage.session.get('musicOff');
-  await chrome.offscreen.closeDocument().catch(() => {});
-  await chrome.storage.session.remove('musicOff');
-  return s && sounding(s) ? { key: s.key, index: s.index, time: songTime(s) } : null;
-}
-
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== 'music' || port.sender?.id !== chrome.runtime.id || !port.sender.url?.startsWith(SONG_PAGE)) return;
-  musicPorts.add(port);
-  port.onMessage.addListener((m) => {
-    if (m?.type === 'state') {
-      const s = readSong(m);
-      if (s) chrome.storage.session.set({ musicPanel: s }).catch(() => {});
-    } else if (m?.type === 'takeover') {
-      takeBack().then((song) => { try { port.postMessage({ type: 'resume', song }); } catch { /* the panel closed meanwhile */ } },
-        (err) => console.error('music takeover', err));
-    }
-  });
-  port.onDisconnect.addListener(() => {
-    musicPorts.delete(port);
-    handOff().catch((err) => console.error('music handoff', err));
-  });
-  offscreenOpen().then(async (open) => {
-    if (!open) return;
-    const { musicOff: s } = await chrome.storage.session.get('musicOff');
-    if (sounding(s)) port.postMessage({ type: 'handback', key: s.key });
-  }).catch(() => {});
-});
-
-chrome.runtime.onMessage.addListener((msg, sender) => {
-  if (msg?.type !== 'musicOff' || sender.id !== chrome.runtime.id || !sender.url?.startsWith(OFFSCREEN_URL)) return false;
-  const s = readSong(msg);
-  if (s) chrome.storage.session.set({ musicOff: s }).catch(() => {});
-  return false;
 });
