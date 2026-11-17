@@ -10,7 +10,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
   fs.mkdirSync(outDir, { recursive: true });
   const ctx = await chromium.launchPersistentContext(fs.mkdtempSync(path.join(os.tmpdir(), 'nfsu2-handoff-')), {
     headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', viewport: { width: 1280, height: 900 },
-    ignoreDefaultArgs: ['--disable-extensions'], args: ['--enable-unsafe-extension-debugging', '--autoplay-policy=document-user-activation-required'],
+    // Headless Chrome is muted by default, and Chrome closes a silent AUDIO_PLAYBACK document after about 30 seconds.
+    // Unmuted into a null audio output, Chrome measures real sound and nothing reaches the speakers.
+    ignoreDefaultArgs: ['--disable-extensions', '--mute-audio'],
+    args: ['--enable-unsafe-extension-debugging', '--autoplay-policy=document-user-activation-required', '--disable-audio-output'],
   });
   let pass = 0, fail = 0;
   const check = (n, ok, d = '') => { ok ? pass++ : fail++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${d ? `  [${d}]` : ''}`); };
@@ -66,16 +69,19 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
     check('the offscreen song moves on (time advances)', off1 && off2 && off2.time > off1.time + 2, `${off1?.time} -> ${off2?.time}`);
     const expected = secs(before.time) + (Date.now() - closedAt) / 1000;
     check('it carried on from where the panel left it, not from 0', off2 && Math.abs(off2.time - expected) < 8, `at ${off2?.time?.toFixed(1)}s, expected about ${expected.toFixed(1)}s`);
+    // Chrome closes an AUDIO_PLAYBACK document after about 30 seconds without audible sound: it must outlive that.
+    await sleep(Math.max(0, closedAt + 50000 - Date.now()));
+    const off3 = (await session()).musicOff;
+    check('50 seconds after the panel closed, the offscreen player is still open and playing', (await offOpen()) === 1 && off3?.status === 'playing' && off3.time > off2.time + 20, `${off2?.time?.toFixed(1)} -> ${off3?.time?.toFixed(1)}`);
 
     // 3. Reopen: the panel takes the song back, the offscreen player closes, no double audio.
-    const reopenedAt = Date.now();
     panel = await openPanel();
     await panel.waitForFunction(() => document.getElementById('musicToggle').getAttribute('aria-label') === 'Pause', null, { timeout: 40000 }).catch(() => {});
     await sleep(6000);
     const after = await state(panel);
     const tab = await panel.$eval('#musicTabs [aria-selected="true"]', (b) => b.dataset.set);
     check('the reopened panel is on NFSU1, playing Get Low', tab === 'u1' && after.title === 'Get Low' && after.toggle === 'Pause', `${tab} ${JSON.stringify(after)}`);
-    const want = expected + (Date.now() - reopenedAt) / 1000;
+    const want = secs(before.time) + (Date.now() - closedAt) / 1000;
     check('the panel picked up near the offscreen second', Math.abs(secs(after.time) - want) < 12, `at ${after.time}, expected about ${want.toFixed(0)}s`);
     check('the offscreen player is closed once the panel has the song', (await offOpen()) === 0);
     await panel.screenshot({ path: path.join(outDir, 'handoff-reopened.png') });

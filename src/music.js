@@ -322,7 +322,7 @@ export const NFSU1_PLAYLIST = '589e7521-5a19-4464-a634-408d755d2603';
 /**
  * NFSU1's 26 EA Trax songs, the 7 menu songs first from Get Low, then the 19 race songs. Within each group the order
  * is the one both the Need for Speed wiki and racingsoundtracks.com give, read on 2026-11-18. Neither shows the EA
- * Trax screen as one list, so menu-then-race is the publisher's call ("Get Low first"). Only the order comes from
+ * Trax screen as one list, so menu-then-race is the publisher's call, with Get Low first. Only the order comes from
  * here: the NFSU1 tab still lists the player's own tracks, so a song the playlist lacks never shows.
  */
 export const NFSU1_ORDER = Object.freeze([
@@ -343,7 +343,7 @@ export const NFSU1_ORDER = Object.freeze([
   ['Asian Dub Foundation', 'Fortress Europe'],
   ['Hotwire', 'Invisible'],
   ['Story of the Year', 'And the Hero Will Drown'],
-  ['Hunter', 'The Wonder of You'], // surname only: the match needs one word, and the owner scan refuses the first name
+  ['Hunter', 'The Wonder of You'], // one word of the artist is enough to match
   ['Junkie XL', 'Action Radius'],
   ['Fuel', 'Quarter'],
   ['Jerk', 'Sucked In'],
