@@ -150,8 +150,36 @@ const IDLE = { index: 0, status: 'idle', started: false, time: 0, duration: 0, f
 const fmt = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 const ICON = { play: 'M7 4v16l13-8z', pause: 'M6 4h4v16H6zM14 4h4v16h-4z' };
 
+/**
+ * The panel's line to background.js, which plays the song on in an offscreen page when the panel closes (Chrome ends
+ * the panel's page, and its player, on close). The panel reports the player's state as it changes, at most every
+ * 2 seconds while nothing else changes, and reconnects when the worker restarts.
+ */
+const bridge = {
+  port: null,
+  sent: '',
+  sentAt: 0,
+  connect() {
+    try { this.port = chrome.runtime.connect({ name: 'music' }); } catch { this.port = null; return; }
+    this.port.onMessage.addListener((m) => player.onBridge(m));
+    this.port.onDisconnect.addListener(() => { this.port = null; this.sent = ''; setTimeout(() => this.connect(), 250); });
+  },
+  post(m) { try { this.port?.postMessage(m); } catch { /* reconnecting */ } },
+  report(s) {
+    const sig = `${set.key}:${s.index}:${s.status}`, now = Date.now();
+    if (sig === this.sent && now - this.sentAt < 2000) return;
+    this.sent = sig;
+    this.sentAt = now;
+    this.post({ type: 'state', key: set.key, index: s.index, time: s.time, status: s.status });
+  },
+};
+
 const player = {
   ready: false,
+  /** The soundtrack whose song is playing offscreen, to take back once this player is ready. */
+  handback: null,
+  /** A second to seek to once the song taken back plays: { index, time }. */
+  resumeAt: null,
   map: music.EA_TRAX.map((_, i) => i), // list index -> player track index
   state: { ...IDLE },
   seeking: false,
@@ -163,8 +191,15 @@ const player = {
 
   /** The EA song the player is on. */
   song() {
-    const k = this.map.indexOf(this.state.index);
+    // Before any song starts, the card shows the list's first row, which Play starts (play()).
+    const k = this.state.started ? this.map.indexOf(this.state.index) : -1;
     return k >= 0 ? k : 0;
+  },
+
+  /** Play or pause. Nothing started yet: start the list's first song, not the player's first track. */
+  play() {
+    if (!this.state.started && this.map[0] >= 0) this.send('load', { index: this.map[0] });
+    else this.send('toggle');
   },
 
   onMessage(e) {
@@ -173,17 +208,37 @@ const player = {
     if (!m) return;
     if (m.type === 'ready') {
       this.ready = true;
+      if (this.handback === set.key) { this.handback = null; bridge.post({ type: 'takeover' }); }
       if (set.tracks) this.map = music.mapTracks(m.tracks);
       else {
-        // A soundtrack without its own list shows the player's, in the player's order.
-        playerTracks = m.tracks.map((t) => ({ artist: t.artist, title: t.name }));
-        this.map = playerTracks.map((_, i) => i);
+        // A soundtrack without its own list shows the player's songs, sorted into the game's order when it has one.
+        this.map = set.order ? music.orderByGame(m.tracks, set.order) : m.tracks.map((_, i) => i);
+        playerTracks = this.map.map((i) => ({ artist: m.tracks[i].artist, title: m.tracks[i].name }));
         render(lastSaved);
       }
     } else {
       this.state = m;
+      const r = this.resumeAt;
+      if (r && m.index === r.index && m.status === 'playing' && m.duration > 0) {
+        this.resumeAt = null;
+        if (r.time >= 1 && r.time < m.duration - 2) this.send('seek', { seconds: Math.floor(r.time) });
+      }
+      bridge.report(m);
     }
     this.paint();
+  },
+
+  /** background.js: a song plays offscreen (handback), or here it is to play on (resume). */
+  onBridge(m) {
+    if (m?.type === 'handback' && music.SOUNDTRACKS.some((s) => s.key === m.key && s.embed)) {
+      this.handback = m.key;
+      if (set.key !== m.key) choose(m.key);
+      // Load the player now, even with the Music card out of view: the song is already playing.
+      if (!this.armed) { this.armed = true; this.load(); } else if (this.ready) { this.handback = null; bridge.post({ type: 'takeover' }); }
+    } else if (m?.type === 'resume' && m.song && m.song.key === set.key && Number.isInteger(m.song.index) && m.song.index >= 0) {
+      this.resumeAt = { index: m.song.index, time: Number(m.song.time) || 0 };
+      this.send('load', { index: m.song.index });
+    }
   },
 
   paint() {
@@ -237,6 +292,7 @@ const player = {
   load() {
     this.ready = false;
     this.state = { ...IDLE };
+    bridge.report(this.state);
     this.map = songs().map((_, i) => i);
     $('musicPlayer').title = `${set.label} EA Trax video, played from YouTube by Spotivibly`;
     // No playlist yet: blank the frame, which also stops the other soundtrack's video. Until the Music card nears the
@@ -257,13 +313,14 @@ const player = {
 
   init() {
     addEventListener('message', (e) => this.onMessage(e));
+    bridge.connect();
     $('musicPlayer').addEventListener('load', () => { this.ready = false; if (set.embed && this.armed) this.hello(); });
     if (typeof IntersectionObserver !== 'function') this.armed = true;
     this.load();
-    $('musicToggle').addEventListener('click', () => this.send('toggle'));
+    $('musicToggle').addEventListener('click', () => this.play());
     $('musicPrev').addEventListener('click', () => this.send('prev'));
     $('musicNext').addEventListener('click', () => this.send('next'));
-    $('miniToggle').addEventListener('click', () => this.send('toggle'));
+    $('miniToggle').addEventListener('click', () => this.play());
     $('miniNext').addEventListener('click', () => this.send('next'));
     if (typeof IntersectionObserver === 'function') {
       new IntersectionObserver((entries) => {
@@ -372,7 +429,7 @@ function init() {
   $('musicAll').addEventListener('click', () => { filter = 'all'; paintFilter(); });
   $('musicMissing').addEventListener('click', () => { filter = 'missing'; paintFilter(); });
   chrome.storage.local.get([SAVED, PICKED]).then((r) => {
-    if (r[PICKED] && r[PICKED] !== set.key) choose(r[PICKED]);
+    if (r[PICKED] && r[PICKED] !== set.key && !player.handback) choose(r[PICKED]);
     const saved = music.readScan(r[SAVED]);
     render(saved);
     if (r[SAVED] != null && !saved) { $('musicState').textContent = 'The last folder check could not be read. Check the folder again.'; $('musicForget').hidden = false; }

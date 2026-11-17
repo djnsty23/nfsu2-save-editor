@@ -66,6 +66,24 @@ check('the plug link is Spotivibly\'s home page with utm tags only', (() => { co
   const ms = music.mapTracks(short);
   check('songs past a shorter list map to -1', ms[25] === -1 && ms[26] === -1 && ms[24] === 24, ms.join());
 
+  // The NFSU1 playlist as Spotivibly served it on 2026-11-18, in its own order, spellings kept (one artist by surname).
+  const u1 = [["Who's Who", 'Dilated Peoples'], ['TO HELL WE RIDE', 'lostprophets'], ['Swallow', 'Blindside'], ['Out of Control', 'Rancid'],
+    ['Kimosabe', 'BT'], ['Fortress Europe', 'Asian Dub Foundation'], ['Broken Promises', 'Element Eighty'], ['Doomsday', 'Overseer'],
+    ['Glitterball', 'FC Kahuna'], ['Snapshot', 'Fluke'], ['And the Hero Will Drown', 'Story Of The Year'], ['Action Radius', 'Junkie XL'],
+    ['Invisible', 'Hotwire'], ['Get Low', 'Lil Jon & The East Side Boyz, Ying Yang Twins'], ['Supermoves', 'Overseer'], ['Quarter', 'Fuel'],
+    ['The Wonders Of You', 'Hunter'], ["24's", 'T.I.'], ['Two-Lane Blacktop', 'Rob Zombie'], ['The Only', 'Static-X'],
+    ['Born Too Slow', 'The Crystal Method'], ['Sucked In', 'Jerk']].map(([name, artist]) => ({ name, artist }));
+  const o = music.orderByGame(u1, music.NFSU1_ORDER);
+  const names = o.map((i) => u1[i].name);
+  const want = ['Get Low', "Who's Who", "24's", 'Doomsday', 'Born Too Slow', 'Out of Control', 'Two-Lane Blacktop', 'Kimosabe', 'The Only',
+    'Broken Promises', 'Fortress Europe', 'Invisible', 'And the Hero Will Drown', 'The Wonders Of You', 'Action Radius', 'Quarter',
+    'Sucked In', 'Snapshot', 'TO HELL WE RIDE', 'Supermoves', 'Glitterball', 'Swallow'];
+  check('NFSU1 tracks sort into the game order, Get Low first, every track kept once', names.join('|') === want.join('|') && new Set(o).size === u1.length, names.join(' | '));
+  check('NFSU1 order holds the 26 songs', music.NFSU1_ORDER.length === 26 && music.NFSU1_ORDER[0].title === 'Get Low');
+  const extra = music.orderByGame([{ name: 'Unknown Song', artist: 'Nobody' }, { name: 'Get Low', artist: 'Lil Jon' }], music.NFSU1_ORDER);
+  check('a track no song takes goes after the matched ones', extra.join() === '1,0', extra.join());
+  check('the NFSU1 tab carries the order, NFSU2 does not', music.SOUNDTRACKS.find((s) => s.key === 'u1').order === music.NFSU1_ORDER && !music.SOUNDTRACKS.find((s) => s.key === 'u2').order);
+
   const none = music.songStatuses(null);
   check('before any scan every status is empty', none.length === 27 && none.every((s) => s === ''));
   const found = music.EA_TRAX.map((_, i) => (i === 0 || i === 4 ? { path: 'x.mp3' } : null));

@@ -82,6 +82,7 @@ This finishes the story on the profile. Only ever on the copy.
 | Undo | **Undo** on any toast | The game shows the state before that edit. |
 | Restore original | History, **Restore original** | The profile as it was before the first edit. |
 | Game running | Press Play, then try any edit in the panel | The panel refuses and says the game is running. Nothing is written. |
+| Music after closing | Music card, play a song, close the side panel, wait 20 seconds, open it again | The song keeps playing while the panel is closed. The reopened panel shows the same song, about 20 seconds further on, and there is only one copy playing. Pause, then close: the music stops. |
 | Offline notice | Read the panel before the first edit | The notice says edited careers are for offline play only, and edits stay locked until you click **I understand: offline only** (once per install). |
 
 ## F. Backup and restore

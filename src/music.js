@@ -313,11 +313,67 @@ export function generateFor(game, tracks) {
 }
 
 /**
- * Spotivibly's "Need for Speed Underground: EA Trax" playlist id. Its song list comes from the player itself, so the
- * panel never carries a typed copy of it. It holds 22 of the game's 26 songs: the other 4 have no official upload on
+ * Spotivibly's "Need for Speed Underground: EA Trax" playlist id. Its song list comes from the player itself: the
+ * panel types in only the order (NFSU1_ORDER), never the rows. It holds 22 of the game's 26 songs: the other 4 have no official upload on
  * Spotify or YouTube. Emptied, the NFSU1 tab says the playlist is coming soon.
  */
 export const NFSU1_PLAYLIST = '589e7521-5a19-4464-a634-408d755d2603';
+
+/**
+ * NFSU1's 26 EA Trax songs, the 7 menu songs first from Get Low, then the 19 race songs. Within each group the order
+ * is the one both the Need for Speed wiki and racingsoundtracks.com give, read on 2026-11-18. Neither shows the EA
+ * Trax screen as one list, so menu-then-race is the publisher's call ("Get Low first"). Only the order comes from
+ * here: the NFSU1 tab still lists the player's own tracks, so a song the playlist lacks never shows.
+ */
+export const NFSU1_ORDER = Object.freeze([
+  ['Lil Jon & the Eastside Boyz', 'Get Low'],
+  ['Mystikal', 'Smashing the Gas (Get Faster)'],
+  ['Dilated Peoples', "Who's Who"],
+  ['Nate Dogg', 'Keep It Coming'],
+  ['X-ecutioners', 'Body Rock'],
+  ['Petey Pablo', 'Need for Speed'],
+  ['T.I.', "24's"],
+  ['Overseer', 'Doomsday'],
+  ['The Crystal Method', 'Born Too Slow'],
+  ['Rancid', 'Out of Control'],
+  ['Rob Zombie', 'Two-Lane Blacktop'],
+  ['BT', 'Kimosabe'],
+  ['Static-X', 'The Only'],
+  ['Element Eighty', 'Broken Promises'],
+  ['Asian Dub Foundation', 'Fortress Europe'],
+  ['Hotwire', 'Invisible'],
+  ['Story of the Year', 'And the Hero Will Drown'],
+  ['Hunter', 'The Wonder of You'], // surname only: the match needs one word, and the owner scan refuses the first name
+  ['Junkie XL', 'Action Radius'],
+  ['Fuel', 'Quarter'],
+  ['Jerk', 'Sucked In'],
+  ['Fluke', 'Snapshot'],
+  ['Lostprophets', 'Ride'],
+  ['Overseer', 'Supermoves'],
+  ['FC Kahuna', 'Glitterball'],
+  ['Blindside', 'Swallow'],
+].map(([artist, title]) => Object.freeze({ artist, title })));
+
+/**
+ * The player's track indexes sorted into a game order of { artist, title }. A track takes the song whose title it
+ * starts with and whose main artist it names. Failing that, a track by an artist with one song in the order takes
+ * that song, so a retitled upload ("The Wonders Of You") still lands in its slot. Tracks no song takes keep their own
+ * order after the rest.
+ */
+export function orderByGame(tracks, order) {
+  const squashed = (s) => norm(s).replace(/ /g, '');
+  const who = (s) => norm(s.artist).replace(/^the /, '').split(' ')[0];
+  const byArtist = (t, s) => ` ${norm(t.artist)} `.includes(` ${who(s)} `);
+  const rank = tracks.map((t) => {
+    const title = squashed(t.name);
+    const k = order.findIndex((s) => title.startsWith(squashed(s.title)) && byArtist(t, s));
+    if (k >= 0) return k;
+    const mine = order.flatMap((s, i) => (byArtist(t, s) ? [i] : []));
+    return mine.length === 1 ? mine[0] : -1;
+  });
+  const key = (i) => (rank[i] < 0 ? order.length + i : rank[i]);
+  return tracks.map((_, i) => i).sort((x, y) => key(x) - key(y) || x - y);
+}
 
 /**
  * The soundtracks the card can show. Only NFSU2 has a folder check: nfsu2.xyz's Radio matches files against NFSU2's
@@ -325,7 +381,7 @@ export const NFSU1_PLAYLIST = '589e7521-5a19-4464-a634-408d755d2603';
  */
 export const SOUNDTRACKS = Object.freeze([
   { key: 'u2', label: 'NFSU2', game: 'Need for Speed Underground 2', embed: SPOTIVIBLY_EMBED, tracks: EA_TRAX, folder: true },
-  { key: 'u1', label: 'NFSU1', game: 'Need for Speed Underground', embed: NFSU1_PLAYLIST ? `https://spotivibly.com/embed/${NFSU1_PLAYLIST}?platform=youtube&view=video` : null, tracks: null, folder: false },
+  { key: 'u1', label: 'NFSU1', game: 'Need for Speed Underground', embed: NFSU1_PLAYLIST ? `https://spotivibly.com/embed/${NFSU1_PLAYLIST}?platform=youtube&view=video` : null, tracks: null, order: NFSU1_ORDER, folder: false },
 ].map(Object.freeze));
 
 /** Spotivibly's home page, for the card's plug. utm_* reaches Spotivibly's own Google Analytics tag, nothing else. */

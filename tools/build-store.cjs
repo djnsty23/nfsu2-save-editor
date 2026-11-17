@@ -40,7 +40,7 @@ const REGIONS = {
  */
 const DONOR_MARK = /"hex"\s*:/;
 /** The store manifest's permissions, exactly. */
-const PERMISSIONS = ['storage', 'sidePanel', 'scripting', 'unlimitedStorage'];
+const PERMISSIONS = ['storage', 'sidePanel', 'scripting', 'offscreen', 'unlimitedStorage'];
 /** Names of dev-only machinery that must not survive in any shipped text file. */
 const BANNED = ['@dev-only', 'build.json', 'chrome.alarms', 'onMessageExternal', 'historyFrom', 'historyReaders',
   'writeBegin', 'writeRenew', 'writeEnd', 'checkUpdate', 'importHistory', 'runtime.reload', 'updateNote', 'importNote', 'workerHeal'];

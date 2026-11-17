@@ -30,9 +30,11 @@ The extension has no servers, accounts, analytics, advertising or tracking. It s
 developer or to anyone else.
 
 The music card shows a player from Spotivibly (spotivibly.com) in an iframe, and that player plays YouTube videos.
-When the side panel opens, your browser loads that player from Spotivibly and YouTube, as it would on their own
-websites, even if you never press play. Their privacy policies cover what they receive, such as your IP address and
-their cookies. The editor sends the player only play, pause and track commands. It shares no save data and no personal data with it. These two
+When you scroll the side panel to the music card, your browser loads that player from Spotivibly and YouTube, as it
+would on their own websites, even if you never press play. Their privacy policies cover what they receive, such as your
+IP address and their cookies. If a song is playing when you close the side panel, the extension moves the same player
+into a hidden page so the song plays on, and moves it back when you open the panel again. Pause before closing to stop
+the music. The editor sends the player only play, pause, seek and track commands. It shares no save data and no personal data with it. These two
 are the only outside services the extension contacts. If you block spotivibly.com or YouTube, the editor works the
 same and the music card offers the Generate link instead of the player.
 

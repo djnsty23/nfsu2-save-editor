@@ -4,7 +4,7 @@
   "version": "0.2.0",
   "description": "Edit your nfsu2.xyz career saves offline: money, unlock all, performance, unique parts, story stage, with undo.",
   "minimum_chrome_version": "116",
-  "permissions": ["storage", "sidePanel", "alarms", "scripting"],
+  "permissions": ["storage", "sidePanel", "alarms", "scripting", "offscreen"],
   "host_permissions": ["https://nfsu2.xyz/*"],
   "background": { "service_worker": "background.js" },
   "action": { "default_title": "NFSU2 Save Editor" },
